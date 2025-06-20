@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disaster Response Platform</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f0f2f5; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 20px; color: #2c3e50; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+    @media (min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
+    @media (min-width: 1024px) { .grid { grid-template-columns: 1fr 1fr 1fr; } }
+    .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: 500; }
+    input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+    button { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+    #map { height: 400px; border-radius: 8px; margin-top: 10px; }
+    #disaster-list { list-style: none; }
+    #disaster-list li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
+    #disaster-list li:hover { background: #f9f9f9; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Disaster Response Platform</h1>
+    
+    <div class="grid">
+      <!-- Disaster Form -->
+      <div class="card">
+        <h2>Report New Disaster</h2>
+        <form id="disaster-form">
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="title" required>
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="description" rows="3" required></textarea>
+          </div>
+          <div class="form-group">
+            <label>Tags (comma separated)</label>
+            <input type="text" id="tags" placeholder="flood, earthquake, urgent">
+          </div>
+          <button type="submit">Report Disaster</button>
+        </form>
+      </div>
+      
+      <!-- Disaster List -->
+      <div class="card">
+        <h2>Active Disasters</h2>
+        <ul id="disaster-list"></ul>
+      </div>
+      
+      <!-- Map -->
+      <div class="card">
+        <h2>Resource Map</h2>
+        <div id="map"></div>
+      </div>
+    </div>
+    
+    <!-- Disaster Details -->
+    <div class="card" id="details-section" style="display:none; margin-top:20px">
+      <h2 id="disaster-title"></h2>
+      <div class="grid">
+        <div>
+          <h3>Social Media Reports</h3>
+          <div id="social-media"></div>
+        </div>
+        <div>
+          <h3>Available Resources</h3>
+          <div id="resources"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  
+  <script>
+    // Initialize map
+    const map = L.map('map').setView([40.7128, -74.0060], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    
+    // Connect to backend
+    const socket = io('http://localhost:5000');
+    const apiUrl = 'http://localhost:5000';
+    
+    // Load disasters on start
+    fetch(`${apiUrl}/disasters`)
+      .then(res => res.json())
+      .then(disasters => {
+        const list = document.getElementById('disaster-list');
+        list.innerHTML = disasters.map(d => 
+          `<li data-id="${d.id}">${d.title} - ${d.location_name}</li>`
+        ).join('');
+      });
+    
+    // Handle new disaster submission
+    document.getElementById('disaster-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const disaster = {
+        title: document.getElementById('title').value,
+        description: document.getElementById('description').value,
+        tags: document.getElementById('tags').value.split(',').map(t => t.trim())
+      };
+      
+      const response = await fetch(`${apiUrl}/disasters`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(disaster)
+      });
+      
+      const result = await response.json();
+      alert(`Disaster reported: ${result.title}`);
+    });
+    
+    // Real-time updates
+    socket.on('disaster_updated', disaster => {
+      const list = document.getElementById('disaster-list');
+      list.innerHTML += `<li data-id="${disaster.id}">${disaster.title} - ${disaster.location_name}</li>`;
+    });
+  </script>
+</body>
+</html>
